@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Truco Mineiro — Jogar vs CPU</title>
+<style>
+  :root{
+    --felt:#0f4d2f;   /* green felt */
+    --wood:#6b3e1e;
+    --panel: rgba(0,0,0,0.22);
+    --accent:#ffd36b;
+    --accent2:#ff6bd1;
+    --card-face:#fff8ea;
+    --card-back:#2b2f33;
+    color:#efeae0;
+    font-family: Inter, Roboto, Arial, sans-serif;
+  }
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#06321a 0%, #052115 100%);display:flex;align-items:center;justify-content:center}
+  .table-wrap{width:1060px;max-width:98vw;padding:20px;border-radius:18px;background:linear-gradient(180deg,#2a5a34 0%, #14381d 100%);box-shadow:0 30px 80px rgba(2,8,2,0.6);border:6px solid rgba(0,0,0,0.35)}
+
+  header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  h1{margin:0;font-size:22px;color:var(--accent);text-shadow:0 2px 8px rgba(0,0,0,0.6)}
+  .scoreboard{margin-left:auto;display:flex;gap:12px;align-items:center}
+  .score-pill{background:linear-gradient(180deg,#2b1f0f,#3a260f);padding:8px 12px;border-radius:999px;color:#fff;font-weight:800;box-shadow:inset 0 -3px 8px rgba(0,0,0,0.35)}
+
+  .board{display:flex;gap:14px}
+  .col{flex:1;min-width:240px}
+  .panel{background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.08));padding:12px;border-radius:12px;min-height:140px;border:1px solid rgba(255,255,255,0.03)}
+
+  .felt{background:linear-gradient(180deg, rgba(0,0,0,0.06), rgba(255,255,255,0.02));border-radius:10px;padding:14px}
+  .hand{display:flex;gap:10px;flex-wrap:wrap}
+
+  .card{width:92px;height:128px;border-radius:8px;background:var(--card-face);border:2px solid rgba(0,0,0,0.18);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#111;font-weight:800;cursor:pointer;box-shadow:0 8px 18px rgba(2,8,2,0.45)}
+  .card.back{background:linear-gradient(180deg,var(--card-back),#151719);color:#fff}
+  .card.small{width:74px;height:106px}
+  .card .rank{font-size:26px}
+  .card .suit{font-size:22px;opacity:0.95}
+
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  button{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;color:#120f07;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:800}
+  button.secondary{background:#2d3a35;color:#e8f6e8;padding:8px 12px}
+  button:disabled{opacity:0.45;cursor:not-allowed}
+
+  .log{max-height:240px;overflow:auto;background:transparent;padding:8px;border-radius:8px;font-size:13px;color:#f6efd8}
+  .center{display:flex;align-items:center;justify-content:center;flex-direction:column}
+  .muted{color:#cfe8d1}
+  .small{font-size:13px;color:#cfe8d1}
+
+  .mesa{display:flex;gap:18px;align-items:flex-end;justify-content:center;min-height:180px}
+  .played-area{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .vazas{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:10px}
+
+  .chip{width:40px;height:40px;border-radius:50%;background:conic-gradient(#ffd36b 0 25%, #ff6b6b 25% 50%, #ffd36b 50% 75%, #ff6b6b 75% 100%);box-shadow:0 6px 12px rgba(0,0,0,0.4)}
+  .stake{display:flex;align-items:center;gap:8px}
+  .wood{background:linear-gradient(180deg,#704320,#4a2914);padding:8px;border-radius:10px;color:#fff}
+
+  footer{margin-top:12px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+</style>
+</head>
+<body>
+  <div class="table-wrap">
+    <header>
+      <h1>Truco Mineiro — Você vs CPU</h1>
+      <div class="scoreboard">
+        <div class="score-pill">Você: <span id="scoreYou" style="margin-left:8px">0</span></div>
+        <div class="score-pill">CPU: <span id="scoreCPU" style="margin-left:8px">0</span></div>
+      </div>
+    </header>
+
+    <div class="board">
+      <div class="col">
+        <div class="panel felt">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div>
+              <div style="font-weight:800">Mão atual</div>
+              <div class="small muted" id="whoIsHand">Você começa</div>
+            </div>
+            <div class="stake">
+              <div class="chip" title="pot visual"></div>
+              <div class="wood small">Aposta: <strong id="stake">1</strong></div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+            <div style="font-weight:800">Vira:</div>
+            <div id="viraCard" class="card small" style="width:78px;height:98px;cursor:default"></div>
+          </div>
+
+          <div style="font-weight:800;margin-bottom:8px">Sua mão (clique para jogar)</div>
+          <div id="handYou" class="hand"></div>
+
+          <div class="controls" style="margin-top:12px">
+            <button id="callTrucoBtn">Pedir TRUCO (3)</button>
+            <button id="callSeisBtn" class="secondary">Pedir 6</button>
+            <button id="callNoveBtn" class="secondary">Pedir 9</button>
+            <button id="callDozeBtn" class="secondary">Pedir 12</button>
+            <button id="resetBtn" class="secondary" style="margin-left:auto;background:#5b2b2b;color:#fff">Nova Partida</button>
+          </div>
+
+          <div class="small muted" style="margin-top:10px">Você pode pedir aumento <strong>antes de jogar</strong> sua carta. Se o oponente correr, quem pediu leva os pontos do nível anterior.</div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="panel center felt">
+          <div style="font-weight:900;font-size:18px;margin-bottom:8px">Mesa</div>
+
+          <div class="mesa" id="trickArea">
+            <div class="played-area">
+              <div class="muted small">Jogada CPU</div>
+              <div id="cpuPlayed" class="card back" style="width:110px;height:150px;opacity:0.95"></div>
+            </div>
+
+            <div class="played-area">
+              <div class="muted small">Jogada Você</div>
+              <div id="youPlayed" class="card" style="width:110px;height:150px;opacity:0.95"></div>
+            </div>
+          </div>
+
+          <div class="vazas">
+            <div class="small muted">Vazas:</div>
+            <div class="wood small">1: <span id="v1">—</span></div>
+            <div class="wood small">2: <span id="v2">—</span></div>
+            <div class="wood small">3: <span id="v3">—</span></div>
+          </div>
+
+          <div style="width:100%;margin-top:12px" class="log" id="log"></div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="panel felt">
+          <div style="font-weight:800;margin-bottom:6px">Responder pedido</div>
+          <div id="responseControls" style="display:flex;gap:8px"></div>
+          <div class="small muted" style="margin-top:6px">Quando a CPU pedir, os botões aparecerão aqui para você responder.</div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="panel felt">
+          <div style="font-weight:800;margin-bottom:6px">Regras</div>
+          <div class="small muted">Implementado:</div>
+          <ul class="small muted">
+            <li>Baralho 40 cartas</li>
+            <li>Manilha definida pela vira</li>
+            <li>Hierarquia manilha: Paus &gt; Copas &gt; Espadas &gt; Ouros</li>
+            <li>Pedir Truco(3) → Seis(6) → Nove(9) → Doze(12)</li>
+            <li>Empates e desempates conforme Truco Mineiro</li>
+            <li>Vence a dupla que chegar a 12 pontos</li>
+          </ul>
+
+          <hr style="opacity:0.06;margin:10px 0">
+
+          <div style="font-weight:700">Turno</div>
+          <div id="turnIndicator" class="muted small">Aguardando início</div>
+
+          <div style="margin-top:8px;font-weight:700">Quem é mano</div>
+          <div id="manoIndicator" class="muted small">Você</div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <div class="small muted">Mesa de apostas — Trucagem em progresso</div>
+      <div style="color:#ffd36b;font-weight:800">Jogo local — Versão demo</div>
+    </footer>
+  </div>
+
+<script>
+/* Truco Mineiro — Single-file game vs CPU
+   Fixes requested:
+   - When player calls Truco and CPU accepts, game could freeze — fixed by explicit state handling and re-renders.
+   - Prevent the same player who last raised from immediately raising again; only the opponent can respond with the next raise.
+*/
+
+// ----- Utilitários e modelo de cartas -----
+const RANK_ORDER = ['4','5','6','7','Q','J','K','A','2','3'];
+const SUITS = [ {sym:'♣', name:'Paus'}, {sym:'♥', name:'Copas'}, {sym:'♠', name:'Espadas'}, {sym:'♦', name:'Ouros'} ];
+
+function createDeck(){ const deck = []; for(const r of RANK_ORDER) for(const s of SUITS) deck.push({rank:r, suit:s}); return deck; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
+function cardLabel(c){ return c ? (c.rank + c.suit.sym) : '—'; }
+
+// ----- Estado do jogo -----
+let deck = [], handYou = [], handCPU = [], vira = null, manilhaRank = null;
+let manoIsYou = true, turnIsYou = true;
+let stakes = 1, stakeLevel = 0; const STAKE_LEVELS = [1,3,6,9,12];
+let vazaPlays = [[],[],[]], vazaWins = [null,null,null], currentVaza = 0;
+let scoreYou = 0, scoreCPU = 0;
+let awaitingResponse = false, pendingCaller = null, previousStakeLevelBeforeCall = 0;
+let lastRaiser = null; // 'you' or 'cpu' — who made the last raise/request
+
+// UI refs
+const handYouDiv = document.getElementById('handYou');
+const cpuPlayedDiv = document.getElementById('cpuPlayed');
+const youPlayedDiv = document.getElementById('youPlayed');
+const viraCardDiv = document.getElementById('viraCard');
+const logDiv = document.getElementById('log');
+const v1 = document.getElementById('v1'), v2 = document.getElementById('v2'), v3 = document.getElementById('v3');
+const turnIndicator = document.getElementById('turnIndicator');
+const whoIsHand = document.getElementById('whoIsHand');
+const manoIndicator = document.getElementById('manoIndicator');
+const stakeDisplay = document.getElementById('stake');
+const scoreYouEl = document.getElementById('scoreYou'), scoreCPUEl = document.getElementById('scoreCPU');
+const responseControls = document.getElementById('responseControls');
+
+const callTrucoBtn = document.getElementById('callTrucoBtn');
+const callSeisBtn = document.getElementById('callSeisBtn');
+const callNoveBtn = document.getElementById('callNoveBtn');
+const callDozeBtn = document.getElementById('callDozeBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+callTrucoBtn.addEventListener('click', ()=>playerCallIncrease(1));
+callSeisBtn.addEventListener('click', ()=>playerCallIncrease(2));
+callNoveBtn.addEventListener('click', ()=>playerCallIncrease(3));
+callDozeBtn.addEventListener('click', ()=>playerCallIncrease(4));
+resetBtn.addEventListener('click', ()=>{ if(confirm('Reiniciar a partida?')) resetAll(); });
+
+// ----- Inicialização -----
+startNewMatch(true);
+
+function startNewMatch(hardReset=false){ if(hardReset){ scoreYou = 0; scoreCPU = 0; updateScores(); } startNewHand(); }
+
+function startNewHand(){
+  log('--- Nova mão ---');
+  deck = createDeck(); shuffle(deck);
+  handYou = []; handCPU = [];
+  vazaPlays = [[],[],[]]; vazaWins = [null,null,null]; currentVaza = 0;
+  stakes = 1; stakeLevel = 0; awaitingResponse = false; pendingCaller = null; previousStakeLevelBeforeCall = 0; lastRaiser = null;
+
+  // distribuir
+  handYou.push(deck.pop()); handCPU.push(deck.pop());
+  handYou.push(deck.pop()); handCPU.push(deck.pop());
+  handYou.push(deck.pop()); handCPU.push(deck.pop());
+  vira = deck.pop(); manilhaRank = computeManilha(vira.rank);
+  log(`Vira: ${cardLabel(vira)}  → Manilha: ${manilhaRank}`);
+  renderVira();
+
+  turnIsYou = manoIsYou;
+  whoIsHand.textContent = manoIsYou ? 'Você (mano)' : 'CPU (mano)';
+  manoIndicator.textContent = manoIsYou ? 'Você' : 'CPU';
+  updateTurnUI(); renderHands();
+
+  cpuPlayedDiv.innerText = ''; youPlayedDiv.innerText = '';
+  v1.innerText = '—'; v2.innerText = '—'; v3.innerText = '—';
+
+  log('Quem inicia: ' + (turnIsYou ? 'Você' : 'CPU'));
+  if(!turnIsYou) setTimeout(()=>cpuPlayIfTurn(), 700);
+}
+
+// ----- Manilha e comparação -----
+function computeManilha(viraRank){ const idx = RANK_ORDER.indexOf(viraRank); return RANK_ORDER[(idx+1)%RANK_ORDER.length]; }
+function cardValueInfo(c){ if(!c) return null; if(c.rank === manilhaRank){ const suitIdx = SUITS.findIndex(s=>s.name===c.suit.name); return {class:1000, manilha:true, suitRank:(SUITS.length - suitIdx)}; } else { const idx = RANK_ORDER.indexOf(c.rank); return {class: idx, manilha:false}; } }
+function compareCards(a,b){ const A = cardValueInfo(a), B = cardValueInfo(b); if(!A || !B) return 0; if(A.manilha && B.manilha){ if(A.suitRank > B.suitRank) return 1; if(A.suitRank < B.suitRank) return -1; return 0; } else if(A.manilha && !B.manilha) return 1; else if(!A.manilha && B.manilha) return -1; else { if(A.class > B.class) return 1; if(A.class < B.class) return -1; return 0; } }
+
+// ----- UI / render -----
+function renderHands(){ handYouDiv.innerHTML=''; handYou.forEach((c,idx)=>{ const cardEl = document.createElement('div'); cardEl.className='card'; cardEl.innerHTML = `<div class="rank">${c.rank}</div><div class="suit">${c.suit.sym}</div>`; cardEl.title = cardLabel(c); const canPlay = gameCanPlayerPlayCard(idx); cardEl.style.opacity = canPlay ? '1' : '0.5'; if(canPlay) cardEl.addEventListener('click', ()=>playerPlayCard(idx)); handYouDiv.appendChild(cardEl); }); }
+function renderVira(){ if(vira) viraCardDiv.innerHTML = `<div style="font-weight:900">${vira.rank}</div><div style="opacity:0.95">${vira.suit.sym}</div>`; else viraCardDiv.innerHTML=''; }
+function updateTurnUI(){
+  turnIndicator.textContent = (turnIsYou ? 'Sua vez de jogar' : 'Vez da CPU');
+  stakeDisplay.textContent = stakes;
+  // Player can call only if it's their turn, not awaiting response, not finished vazas and importantly
+  // they were not the last raiser (only opponent can raise next).
+  const canCallPlayer = turnIsYou && !awaitingResponse && currentVaza < 3 && lastRaiser !== 'you';
+  const canCallCPU = !turnIsYou && !awaitingResponse && currentVaza < 3 && lastRaiser !== 'cpu';
+  callTrucoBtn.disabled = !canCallPlayer;
+  callSeisBtn.disabled = !canCallPlayer;
+  callNoveBtn.disabled = !canCallPlayer;
+  callDozeBtn.disabled = !canCallPlayer;
+}
+function gameCanPlayerPlayCard(idx){ if(!turnIsYou) return false; if(awaitingResponse) return false; const existingYouPlays = vazaPlays[currentVaza].filter(p=>p.who==='you'); if(existingYouPlays.length>0) return false; return true; }
+
+// ----- Jogadas -----
+function playerPlayCard(handIdx){ if(!gameCanPlayerPlayCard(handIdx)) return; const card = handYou.splice(handIdx,1)[0]; vazaPlays[currentVaza].push({who:'you', card}); youPlayedDiv.innerText = cardLabel(card); log(`Você jogou ${cardLabel(card)} (vaza ${currentVaza+1})`); if(vazaPlays[currentVaza].length===1){ turnIsYou = false; updateTurnUI(); setTimeout(()=>cpuPlayIfTurn(), 600); } else { resolveVaza(); } renderHands(); }
+
+function cpuPlayIfTurn(){ if(turnIsYou) return; if(awaitingResponse) return; if(handCPU.length===0) return; const cpuCard = cpuChooseCard(); const idx = handCPU.findIndex(c=>c.rank===cpuCard.rank && c.suit.name===cpuCard.suit.name); if(idx>=0) handCPU.splice(idx,1); vazaPlays[currentVaza].push({who:'cpu', card: cpuCard}); cpuPlayedDiv.innerText = cardLabel(cpuCard); log(`CPU jogou ${cardLabel(cpuCard)} (vaza ${currentVaza+1})`); if(vazaPlays[currentVaza].length===2){ setTimeout(()=>resolveVaza(), 420); } else { turnIsYou = true; updateTurnUI(); } renderHands(); }
+
+function cpuChooseCard(){ const youPlayed = vazaPlays[currentVaza].find(p=>p.who==='you'); if(youPlayed){ for(const c of handCPU) if(compareCards(c, youPlayed.card) === 1) return c; return handCPU.reduce((a,b)=> compareCards(a,b) === -1 ? a : b); } else { const strongCount = handCPU.filter(c=> cardValueInfo(c).manilha || RANK_ORDER.indexOf(c.rank) >= 7 ).length; if(!awaitingResponse && Math.random() < 0.08 + 0.06*strongCount){ const level = strongCount >= 2 ? 1 : 0; cpuInitiateCall(level); } const sorted = [...handCPU].sort((a,b)=> compareCards(b,a)); return sorted[0]; } }
+
+// ----- Resolução de vaza -----
+function resolveVaza(){ const plays = vazaPlays[currentVaza]; if(plays.length < 2){ turnIsYou = !turnIsYou; updateTurnUI(); return; } const p1 = plays[0], p2 = plays[1]; const cmp = compareCards(p1.card, p2.card); let winner = null; if(cmp === 1) winner = p1.who; else if(cmp === -1) winner = p2.who; else winner = 'none'; vazaWins[currentVaza] = winner; if(currentVaza===0) v1.innerText = winner === 'you' ? 'Você' : (winner==='cpu' ? 'CPU' : 'Embolada'); if(currentVaza===1) v2.innerText = winner === 'you' ? 'Você' : (winner==='cpu' ? 'CPU' : 'Embolada'); if(currentVaza===2) v3.innerText = winner === 'you' ? 'Você' : (winner==='cpu' ? 'CPU' : 'Embolada'); log(`Vaza ${currentVaza+1} vencida por: ${winner === 'you' ? 'Você' : (winner==='cpu' ? 'CPU' : 'Embolada')}`);
+  // determine next starter
+  if(winner === 'you' || winner === 'cpu') turnIsYou = (winner === 'you');
+  else turnIsYou = (plays[0].who === 'you');
+  updateTurnUI();
+
+  // Check hand decision
+  const decision = evaluateHandWinner();
+  if(decision){
+    // clear pending calls/controls
+    awaitingResponse = false; pendingCaller = null; responseControls.innerHTML = '';
+    awardPointsForHand(decision);
+    manoIsYou = !manoIsYou;
+    if(scoreYou >= 12 || scoreCPU >= 12){ announceMatchWinner(); return; }
+    setTimeout(()=>startNewHand(), 900);
+    return;
+  } else {
+    // advance to next vaza
+    currentVaza++;
+    cpuPlayedDiv.innerText = ''; youPlayedDiv.innerText = '';
+    // If next starter is CPU, schedule CPU play
+    if(!turnIsYou){ setTimeout(()=>cpuPlayIfTurn(), 700); }
+  }
+}
+
+function evaluateHandWinner(){ const seen = vazaWins.slice(0, currentVaza+1); const youWins = seen.filter(w=>w==='you').length; const cpuWins = seen.filter(w=>w==='cpu').length; if(youWins >= 2) return 'you'; if(cpuWins >= 2) return 'cpu'; if(currentVaza === 1){ if(vazaWins[1] === 'none' && vazaWins[0] && vazaWins[0] !== 'none') return vazaWins[0]; if(vazaWins[0] === 'none' && vazaWins[1] && vazaWins[1] !== 'none') return vazaWins[1]; return null; } if(currentVaza >= 2){ const all = vazaWins.slice(0,3); const y = all.filter(w=>w==='you').length; const c = all.filter(w=>w==='cpu').length; if(y > c) return 'you'; if(c > y) return 'cpu'; if(vazaWins[0] === 'you') return 'you'; if(vazaWins[0] === 'cpu') return 'cpu'; return manoIsYou ? 'you' : 'cpu'; } return null; }
+
+function awardPointsForHand(winner){ log(`== MÃO vencida por: ${winner === 'you' ? 'Você' : 'CPU'} (ganha ${stakes} ponto(s)) ==`); if(winner === 'you') scoreYou += stakes; else scoreCPU += stakes; updateScores(); }
+function updateScores(){ scoreYouEl.innerText = scoreYou; scoreCPUEl.innerText = scoreCPU; }
+function announceMatchWinner(){ if(scoreYou >= 12){ alert('Parabéns — você ganhou a partida!'); } else { alert('CPU venceu a partida. Boa tentativa!'); } startNewMatch(true); }
+
+// ----- Calls (Truco/6/9/12) -----
+function playerCallIncrease(level){
+  // allow call only if it's your turn, not awaiting response, not already played this vaza
+  if(!turnIsYou || awaitingResponse) return;
+  const existingYouPlays = vazaPlays[currentVaza].filter(p=>p.who==='you');
+  if(existingYouPlays.length>0){ log('Você já jogou nesta vaza — não pode pedir agora.'); return; }
+  if(level <= stakeLevel){ log('Já estamos nesse nível ou maior.'); return; }
+  // prevent the same player who last raised from raising again immediately
+  if(lastRaiser === 'you'){ log('Aguarde que o oponente responda/raise antes de pedir de novo.'); return; }
+
+  previousStakeLevelBeforeCall = stakeLevel; pendingCaller = 'you'; awaitingResponse = true; lastRaiser = 'you';
+  log(`Você pediu ${STAKE_LEVELS[level]} pontos (nível ${level}). CPU decidindo...`);
+  showResponseControlsForCPU();
+  setTimeout(()=>cpuRespondToCall(level), 700);
+}
+
+function cpuInitiateCall(level){
+  if(awaitingResponse) return;
+  if(level <= stakeLevel) return;
+  if(lastRaiser === 'cpu') return; // don't repeatedly raise
+  previousStakeLevelBeforeCall = stakeLevel; pendingCaller = 'cpu'; awaitingResponse = true; lastRaiser = 'cpu';
+  log(`CPU pede ${STAKE_LEVELS[level]} pontos. Aguarde sua resposta.`);
+  showResponseControlsForYou(level);
+}
+
+function showResponseControlsForYou(levelAsked){ responseControls.innerHTML = ''; const acceptBtn = document.createElement('button'); acceptBtn.className='secondary'; acceptBtn.innerText='Aceitar'; const runBtn = document.createElement('button'); runBtn.className='secondary'; runBtn.style.background='#5b2b2b'; runBtn.innerText='Correr (Fold)'; const increaseBtn = document.createElement('button'); increaseBtn.innerText='Aumentar'; acceptBtn.onclick = ()=>{ respondToCPUPetition('accept', levelAsked); }; runBtn.onclick = ()=>{ respondToCPUPetition('run', levelAsked); }; increaseBtn.onclick = ()=>{ respondToCPUPetition('raise', levelAsked); }; responseControls.appendChild(acceptBtn); responseControls.appendChild(increaseBtn); responseControls.appendChild(runBtn); }
+
+function cpuRespondToCall(levelAsked){
+  const strength = evaluateHandStrength(handCPU);
+  let choiceRand = Math.random();
+  let choice = 'accept';
+  if(strength > 0.7 && choiceRand < 0.55) choice = 'raise';
+  else if(strength > 0.4 && choiceRand < 0.8) choice = 'accept';
+  else choice = 'run';
+
+  if(choice === 'accept'){
+    // CPU accepts the call
+    stakeLevel = levelAsked; stakes = STAKE_LEVELS[stakeLevel];
+    awaitingResponse = false; pendingCaller = null;
+    // Keep lastRaiser as who made the last request — this prevents that same player from immediately raising again
+    responseControls.innerHTML = '';
+    log(`CPU aceitou. Agora a mão vale ${stakes} pontos.`);
+    updateTurnUI();
+    // ensure UI and hands re-render so nothing blocks
+    renderHands();
+    // if it's CPU's turn, let it play; otherwise player continues
+    if(!turnIsYou) setTimeout(()=>cpuPlayIfTurn(),600);
+    return;
+  } else if(choice === 'run'){
+    const points = STAKE_LEVELS[ previousStakeLevelBeforeCall ];
+    log(`CPU fugiu (caiu). Você ganha ${points} ponto(s).`);
+    scoreYou += points; updateScores();
+    awaitingResponse = false; pendingCaller = null; responseControls.innerHTML = '';
+    setTimeout(()=>{ manoIsYou = !manoIsYou; if(scoreYou >= 12 || scoreCPU >= 12){ announceMatchWinner(); return; } startNewHand(); }, 700);
+    return;
+  } else {
+    // CPU raises — CPU is now the last raiser and we wait player's response
+    const newLevel = Math.min(4, levelAsked + 1);
+    previousStakeLevelBeforeCall = levelAsked;
+    stakeLevel = newLevel; stakes = STAKE_LEVELS[stakeLevel];
+    awaitingResponse = true;
+    pendingCaller = 'cpu'; lastRaiser = 'cpu';
+    log(`CPU aumentou a aposta para ${stakes} pontos. Agora é sua vez de responder.`);
+    showResponseControlsForYou(newLevel);
+    updateTurnUI();
+  }
+}
+
+function respondToCPUPetition(action, levelAsked){ if(!awaitingResponse || pendingCaller !== 'cpu') return; responseControls.innerHTML = '';
+  if(action === 'accept'){
+    stakeLevel = levelAsked; stakes = STAKE_LEVELS[stakeLevel]; awaitingResponse = false; pendingCaller = null; // lastRaiser remains 'cpu' so CPU won't raise again immediately
+    log(`Você aceitou. Mão vale ${stakes} pontos.`);
+    updateTurnUI();
+    renderHands();
+    if(!turnIsYou) setTimeout(()=>cpuPlayIfTurn(), 500);
+    return;
+  } else if(action === 'run'){
+    const points = STAKE_LEVELS[ previousStakeLevelBeforeCall ]; log(`Você fugiu. CPU ganha ${points} ponto(s).`); scoreCPU += points; updateScores(); awaitingResponse = false; pendingCaller = null; responseControls.innerHTML = '';
+    setTimeout(()=>{ manoIsYou = !manoIsYou; if(scoreYou >= 12 || scoreCPU >= 12){ announceMatchWinner(); return; } startNewHand(); },700);
+    return;
+  } else if(action === 'raise'){
+    const newLevel = Math.min(4, levelAsked + 1); previousStakeLevelBeforeCall = levelAsked; stakeLevel = newLevel; stakes = STAKE_LEVELS[stakeLevel]; awaitingResponse = true; pendingCaller = 'you'; lastRaiser = 'you'; log(`Você aumentou a aposta para ${stakes} pontos. CPU decidindo...`); showResponseControlsForCPU(); setTimeout(()=>cpuRespondToYourRaise(newLevel), 700); return;
+  } }
+
+function showResponseControlsForCPU(){ responseControls.innerHTML = ''; const w = document.createElement('div'); w.className='small muted'; w.innerText = 'CPU decidindo...'; responseControls.appendChild(w); }
+
+function cpuRespondToYourRaise(levelAsked){ const strength = evaluateHandStrength(handCPU); const decisionRand = Math.random(); if(strength > 0.7 && decisionRand > 0.15){ if(levelAsked < 4 && Math.random() < 0.18 && strength > 0.85){ const newLevel = Math.min(4, levelAsked + 1); previousStakeLevelBeforeCall = levelAsked; stakeLevel = newLevel; stakes = STAKE_LEVELS[stakeLevel]; pendingCaller = 'cpu'; awaitingResponse = true; lastRaiser = 'cpu'; log(`CPU aumentou para ${stakes}. Aguarda sua resposta.`); showResponseControlsForYou(newLevel); } else { stakeLevel = levelAsked; stakes = STAKE_LEVELS[stakeLevel]; awaitingResponse = false; pendingCaller = null; responseControls.innerHTML = ''; log(`CPU aceitou. Mão vale ${stakes} pontos.`); updateTurnUI(); renderHands(); if(!turnIsYou) setTimeout(()=>cpuPlayIfTurn(),600); } } else { const points = STAKE_LEVELS[ previousStakeLevelBeforeCall ]; log(`CPU fugiu. Você ganha ${points} ponto(s).`); scoreYou += points; updateScores(); awaitingResponse = false; pendingCaller = null; responseControls.innerHTML = ''; setTimeout(()=>{ manoIsYou = !manoIsYou; if(scoreYou >= 12 || scoreCPU >= 12){ announceMatchWinner(); return; } startNewHand(); },700); } }
+
+// ----- Avaliação de força simples -----
+function evaluateHandStrength(hand){ let score = 0; for(const c of hand){ if(c.rank === manilhaRank) score += 1.8; else { const idx = RANK_ORDER.indexOf(c.rank); score += (idx / (RANK_ORDER.length-1)); } } const maxPossible = 1.8 + 1 + 1; const normalized = Math.min(1, score / maxPossible); return normalized; }
+
+function cpuInitiateCall(level){ if(awaitingResponse) return; if(level <= stakeLevel) return; if(lastRaiser === 'cpu') return; previousStakeLevelBeforeCall = stakeLevel; pendingCaller = 'cpu'; awaitingResponse = true; lastRaiser = 'cpu'; log(`CPU pede ${STAKE_LEVELS[level]} pontos.`); showResponseControlsForYou(level); }
+
+function log(txt){ const p = document.createElement('div'); p.innerText = txt; logDiv.prepend(p); }
+function clearTable(){ cpuPlayedDiv.innerText = ''; youPlayedDiv.innerText = ''; }
+
+function endHandByFold(winner, pointsAwarded){ log(`${winner === 'you' ? 'Você' : 'CPU'} ganhou por fold e recebe ${pointsAwarded} pontos.`); if(winner==='you') scoreYou += pointsAwarded; else scoreCPU += pointsAwarded; updateScores(); setTimeout(()=>{ manoIsYou = !manoIsYou; if(scoreYou >= 12 || scoreCPU >= 12){ announceMatchWinner(); return; } startNewHand(); },800); }
+
+function resetAll(){ scoreYou = 0; scoreCPU = 0; manoIsYou = true; startNewHand(); updateScores(); }
+
+</script>
+</body>
+</html>

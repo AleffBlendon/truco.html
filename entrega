@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Truco Mineiro — Jogar vs CPU (corrigido)</title>
+<style>
+  :root{
+    --felt:#0f4d2f;
+    --accent:#ffd36b;
+    --accent2:#ff6bd1;
+    --card-face:#fff8ea;
+    --card-back:#2b2f33;
+    color:#efeae0;
+    font-family: Inter, Roboto, Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#06321a 0%, #052115 100%);display:flex;align-items:center;justify-content:center;padding:20px}
+  .page{width:1100px;max-width:98vw}
+  .site-top{display:flex;flex-direction:column;align-items:center;margin-bottom:10px;color:var(--accent);text-align:center}
+  .site-top .title{font-weight:900;font-size:18px}
+  .table-wrap{padding:18px;border-radius:14px;background:linear-gradient(180deg,#2a5a34 0%, #14381d 100%);box-shadow:0 30px 80px rgba(2,8,2,0.6);border:6px solid rgba(0,0,0,0.35);color:#efeae0}
+
+  header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  h1{margin:0;font-size:20px;color:var(--accent);text-shadow:0 2px 8px rgba(0,0,0,0.6);flex:1;text-align:center}
+  .scoreboard{margin-left:auto;display:flex;gap:12px;align-items:center}
+  .score-pill{background:linear-gradient(180deg,#2b1f0f,#3a260f);padding:8px 12px;border-radius:999px;color:#fff;font-weight:800;box-shadow:inset 0 -3px 8px rgba(0,0,0,0.35)}
+
+  .board{display:flex;gap:14px}
+  .col{flex:1;min-width:240px}
+  .panel{background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.08));padding:12px;border-radius:12px;min-height:140px;border:1px solid rgba(255,255,255,0.03)}
+
+  .felt{background:linear-gradient(180deg, rgba(0,0,0,0.06), rgba(255,255,255,0.02));border-radius:10px;padding:14px}
+  .hand{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+
+  .card{width:92px;height:128px;border-radius:8px;background:var(--card-face);border:2px solid rgba(0,0,0,0.18);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#111;font-weight:800;cursor:pointer;box-shadow:0 8px 18px rgba(2,8,2,0.45)}
+  .card.back{background:linear-gradient(180deg,var(--card-back),#151719);color:#fff}
+  .card.small{width:74px;height:106px}
+  .card .rank{font-size:26px}
+  .card .suit{font-size:22px;opacity:0.95}
+
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;justify-content:center}
+  button{background:linear-gradient(90deg,var(--accent),var(--accent2));border:none;color:#120f07;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:800}
+  button.secondary{background:#2d3a35;color:#e8f6e8;padding:8px 12px}
+  button:disabled{opacity:0.45;cursor:not-allowed}
+
+  .log{max-height:240px;overflow:auto;background:transparent;padding:8px;border-radius:8px;font-size:13px;color:#f6efd8}
+  .center{display:flex;align-items:center;justify-content:center;flex-direction:column}
+  .muted{color:#cfe8d1}
+  .small{font-size:13px;color:#cfe8d1}
+
+  .mesa{display:flex;gap:18px;align-items:flex-end;justify-content:center;min-height:180px}
+  .played-area{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .vazas{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:10px}
+
+  .chip{width:40px;height:40px;border-radius:50%;background:conic-gradient(#ffd36b 0 25%, #ff6b6b 25% 50%, #ffd36b 50% 75%, #ff6b6b 75% 100%);box-shadow:0 6px 12px rgba(0,0,0,0.4)}
+  .stake{display:flex;align-items:center;gap:8px}
+  .wood{background:linear-gradient(180deg,#704320,#4a2914);padding:8px;border-radius:10px;color:#fff}
+
+  footer{margin-top:12px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+
+  /* Modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:none;align-items:center;justify-content:center;z-index:9999}
+  .modal{background:#0a2a17;color:#fff;padding:18px;border-radius:12px;min-width:320px;max-width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.6)}
+  .modal h3{margin:0 0 8px 0;color:var(--accent)}
+  .modal .modal-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;justify-content:center}
+  .modal .modal-info{background:rgba(255,255,255,0.03);padding:8px;border-radius:8px;margin-top:8px}
+
+  /* responsive */
+  @media (max-width:880px){ .board{flex-direction:column} .hand{justify-content:flex-start} }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="site-top">
+      <div class="title">Meu Primeiro Servidor WEB</div>
+      <div class="title" style="font-size:14px">Aleff Blendon Costa</div>
+    </div>
+
+    <div class="table-wrap">
+      <header>
+        <h1>Truco Mineiro — Você vs CPU</h1>
+        <div class="scoreboard">
+          <div class="score-pill">Você: <span id="scoreYou" style="margin-left:8px">0</span></div>
+          <div class="score-pill">CPU: <span id="scoreCPU" style="margin-left:8px">0</span></div>
+        </div>
+      </header>
+
+      <div class="board">
+        <div class="col">
+          <div class="panel felt">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div>
+                <div style="font-weight:800">Mão atual</div>
+                <div class="small muted" id="whoIsHand">Você começa</div>
+              </div>
+              <div class="stake">
+                <div class="chip" title="pot visual"></div>
+                <div class="wood small">Aposta: <strong id="stake">1</strong></div>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+              <div style="font-weight:800">Vira:</div>
+              <div id="viraCard" class="card small" style="width:78px;height:98px;cursor:default"></div>
+            </div>
+
+            <div style="font-weight:800;margin-bottom:8px">Sua mão (clique para jogar)</div>
+            <div id="handYou" class="hand"></div>
+
+            <div class="controls" style="margin-top:12px">
+              <button id="callTrucoBtn">Pedir TRUCO (3)</button>
+              <button id="callSeisBtn" class="secondary">Pedir 6</button>
+              <button id="callNoveBtn" class="secondary">Pedir 9</button>
+              <button id="callDozeBtn" class="secondary">Pedir 12</button>
+              <button id="resetBtn" class="secondary" style="margin-left:auto;background:#5b2b2b;color:#fff">Nova Partida</button>
+            </div>
+
+            <div class="small muted" style="margin-top:10px">Você pode pedir aumento <strong>antes de jogar</strong> sua carta. Se o oponente correr, quem pediu leva os pontos do nível anterior.</div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="panel center felt">
+            <div style="font-weight:900;font-size:18px;margin-bottom:8px">Mesa</div>
+
+            <div class="mesa" id="trickArea">
+              <div class="played-area">
+                <div class="muted small">Jogada CPU</div>
+                <div id="cpuPlayed" class="card back" style="width:110px;height:150px;opacity:0.95"></div>
+              </div>
+
+              <div class="played-area">
+                <div class="muted small">Jogada Você</div>
+                <div id="youPlayed" class="card" style="width:110px;height:150px;opacity:0.95"></div>
+              </div>
+            </div>
+
+            <div class="vazas">
+              <div class="small muted">Vazas:</div>
+              <div class="wood small">1: <span id="v1">—</span></div>
+              <div class="wood small">2: <span id="v2">—</span></div>
+              <div class="wood small">3: <span id="v3">—</span></div>
+            </div>
+
+            <div style="width:100%;margin-top:12px" class="log" id="log"></div>
+          </div>
+
+          <div style="height:12px"></div>
+
+          <div class="panel felt">
+            <div style="font-weight:800;margin-bottom:6px">Responder pedido</div>
+            <div id="responseControls" style="display:flex;gap:8px;justify-content:center"></div>
+            <div class="small muted" style="margin-top:6px">Quando a CPU pedir, aparecerá uma janela pop-up com as opções.</div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="panel felt">
+            <div style="font-weight:800;margin-bottom:6px">Regras</div>
+            <div class="small muted">Implementado:</div>
+            <ul class="small muted">
+              <li>Baralho 40 cartas</li>
+              <li>Manilha definida pela vira</li>
+              <li>Hierarquia manilha: Paus &gt; Copas &gt; Espadas &gt; Ouros</li>
+              <li>Pedir Truco(3) → Seis(6) → Nove(9) → Doze(12)</li>
+              <li>Empates e desempates conforme Truco Mineiro simplificado</li>
+              <li>Vence a dupla que chegar a 12 pontos</li>
+            </ul>
+
+            <hr style="opacity:0.06;margin:10px 0">
+
+            <div style="font-weight:700">Turno</div>
+            <div id="turnIndicator" class="muted small">Aguardando início</div>
+
+            <div style="margin-top:8px;font-weight:700">Quem é mano</div>
+            <div id="manoIndicator" class="muted small">Você</div>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        <div class="small muted">Mesa de apostas — Trucagem em progresso</div>
+        <div style="color:#ffd36b;font-weight:800">Jogo local — Versão demo</div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal backdrop -->
+  <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h3 id="modalTitle">Pedido de Truco</h3>
+      <div id="modalText" class="modal-info">CPU pede truco — aceitar, fugir ou aumentar?</div>
+      <div style="margin-top:8px" id="modalStakeInfo" class="small muted"></div>
+      <div class="modal-row" id="modalButtons"></div>
+      <div style="margin-top:10px;text-align:center">
+        <button id="modalClose" class="secondary" style="background:#444">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* Truco corrigido — single file
+   Correção aplicada: fechar modal / clicar fora / Esc = Fugir (se houver pedido pendente da CPU).
+*/
+
+// ----- Constantes e utilitários -----
+const RANK_ORDER = ['4','5','6','7','Q','J','K','A','2','3'];
+const SUITS = [
+  {sym:'♣', name:'Paus', order:4},
+  {sym:'♥', name:'Copas', order:3},
+  {sym:'♠', name:'Espadas', order:2},
+  {sym:'♦', name:'Ouros', order:1}
+];
+const STAKE_LEVELS = [1,3,6,9,12];
+
+function createDeck(){ const d=[]; for(const r of RANK_ORDER) for(const s of SUITS) d.push({rank:r, suit:s}); return d; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
+function cardLabel(c){ return c ? (c.rank + c.suit.sym) : '—'; }
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+// ----- Estado -----
+let deck=[], handYou=[], handCPU=[], vira=null, manilhaRank=null;
+let manoIsYou=true, turnIsYou=true;
+let stakeLevel=0, stakes=STAKE_LEVELS[0], previousStakeLevelBeforeCall=0;
+let vazaPlays=[[],[],[]], vazaWins=[null,null,null], currentVaza=0;
+let scoreYou=0, scoreCPU=0;
+let awaitingResponse=false, pendingCaller=null, lastRaiser=null;
+// variável nova: guarda o nível pedido exibido no modal (necessário para tratar "Fechar")
+let modalLevelAsked = 0;
+
+// UI refs
+const handYouDiv = document.getElementById('handYou');
+const cpuPlayedDiv = document.getElementById('cpuPlayed');
+const youPlayedDiv = document.getElementById('youPlayed');
+const viraCardDiv = document.getElementById('viraCard');
+const logDiv = document.getElementById('log');
+const v1 = document.getElementById('v1'), v2 = document.getElementById('v2'), v3 = document.getElementById('v3');
+const turnIndicator = document.getElementById('turnIndicator');
+const whoIsHand = document.getElementById('whoIsHand');
+const manoIndicator = document.getElementById('manoIndicator');
+const stakeDisplay = document.getElementById('stake');
+const scoreYouEl = document.getElementById('scoreYou'), scoreCPUEl = document.getElementById('scoreCPU');
+const responseControls = document.getElementById('responseControls');
+
+const callTrucoBtn = document.getElementById('callTrucoBtn');
+const callSeisBtn = document.getElementById('callSeisBtn');
+const callNoveBtn = document.getElementById('callNoveBtn');
+const callDozeBtn = document.getElementById('callDozeBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+const modalBackdrop = document.getElementById('modalBackdrop');
+const modalTitle = document.getElementById('modalTitle');
+const modalText = document.getElementById('modalText');
+const modalButtons = document.getElementById('modalButtons');
+const modalStakeInfo = document.getElementById('modalStakeInfo');
+const modalClose = document.getElementById('modalClose');
+
+callTrucoBtn.addEventListener('click', ()=>playerCallIncrease(1));
+callSeisBtn.addEventListener('click', ()=>playerCallIncrease(2));
+callNoveBtn.addEventListener('click', ()=>playerCallIncrease(3));
+callDozeBtn.addEventListener('click', ()=>playerCallIncrease(4));
+resetBtn.addEventListener('click', ()=>{ if(confirm('Reiniciar a partida?')) resetAll(); });
+
+// Tratar botão fechar: quando há resposta pendente da CPU, fechar = Fugir (fold)
+modalClose.addEventListener('click', ()=>{
+  if(awaitingResponse && pendingCaller === 'cpu'){
+    // tratar fechar igual "fugir"
+    playerRespondToCPUPetition('run', modalLevelAsked);
+  } else {
+    closeModal(false);
+  }
+});
+
+// clique no backdrop -> se clicou fora da caixa, tratar como fechar (fold) quando apropriado
+modalBackdrop.addEventListener('click', (e)=>{
+  if(e.target === modalBackdrop){
+    if(awaitingResponse && pendingCaller === 'cpu'){
+      playerRespondToCPUPetition('run', modalLevelAsked);
+    } else {
+      closeModal(false);
+    }
+  }
+});
+// Esc = fold quando modal aberto e aguardando resposta
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape' && modalBackdrop.style.display === 'flex'){
+    if(awaitingResponse && pendingCaller === 'cpu'){
+      playerRespondToCPUPetition('run', modalLevelAsked);
+    } else {
+      closeModal(false);
+    }
+  }
+});
+
+// ----- Inicialização -----
+startNewMatch(true);
+
+// ----- Funções de jogo -----
+function startNewMatch(hardReset=false){
+  if(hardReset){ scoreYou=0; scoreCPU=0; updateScores(); manoIsYou=true; }
+  startNewHand();
+}
+
+function startNewHand(){
+  log('--- Nova mão ---');
+  deck=createDeck(); shuffle(deck);
+  handYou=[]; handCPU=[];
+  vazaPlays=[[],[],[]]; vazaWins=[null,null,null]; currentVaza=0;
+  stakeLevel=0; stakes=STAKE_LEVELS[stakeLevel]; previousStakeLevelBeforeCall=0;
+  awaitingResponse=false; pendingCaller=null; lastRaiser=null; modalLevelAsked = 0;
+
+  for(let i=0;i<3;i++){ handYou.push(deck.pop()); handCPU.push(deck.pop()); }
+  vira = deck.pop(); manilhaRank = computeManilha(vira.rank);
+  renderVira(); renderHands();
+  whoIsHand.textContent = manoIsYou ? 'Você (mano)' : 'CPU (mano)';
+  manoIndicator.textContent = manoIsYou ? 'Você' : 'CPU';
+  cpuPlayedDiv.innerText=''; youPlayedDiv.innerText='';
+  v1.innerText='—'; v2.innerText='—'; v3.innerText='—';
+
+  turnIsYou = manoIsYou;
+  updateTurnUI();
+  log(`Vira: ${cardLabel(vira)} → Manilha: ${manilhaRank}`);
+  log('Quem inicia: ' + (turnIsYou ? 'Você' : 'CPU'));
+  if(!turnIsYou){ setTimeout(()=>cpuTurnOrAct(), 700); }
+}
+
+// ----- Manilha e comparação -----
+function computeManilha(viraRank){ const idx = RANK_ORDER.indexOf(viraRank); return RANK_ORDER[(idx+1)%RANK_ORDER.length]; }
+function cardValueInfo(c){
+  if(!c) return null;
+  if(c.rank === manilhaRank){
+    const sIdx = SUITS.findIndex(s=>s.name===c.suit.name);
+    return {manilha:true, suitRank: SUITS.length - sIdx, power: 1000 + (SUITS.length - sIdx)};
+  } else {
+    const idx = RANK_ORDER.indexOf(c.rank);
+    return {manilha:false, power: idx};
+  }
+}
+function compareCards(a,b){
+  const A = cardValueInfo(a), B = cardValueInfo(b);
+  if(!A || !B) return 0;
+  if(A.manilha && B.manilha){
+    if(A.suitRank > B.suitRank) return 1;
+    if(A.suitRank < B.suitRank) return -1;
+    return 0;
+  } else if(A.manilha && !B.manilha) return 1;
+  else if(!A.manilha && B.manilha) return -1;
+  else {
+    if(A.power > B.power) return 1;
+    if(A.power < B.power) return -1;
+    return 0;
+  }
+}
+
+// ----- Render UI -----
+function renderHands(){
+  handYouDiv.innerHTML='';
+  handYou.forEach((c,idx)=>{
+    const cardEl = document.createElement('div');
+    cardEl.className='card';
+    cardEl.innerHTML = `<div class="rank">${c.rank}</div><div class="suit">${c.suit.sym}</div>`;
+    cardEl.title = cardLabel(c);
+    const canPlay = gameCanPlayerPlayCard(idx);
+    cardEl.style.opacity = canPlay ? '1' : '0.45';
+    if(canPlay) cardEl.addEventListener('click', ()=>playerPlayCard(idx));
+    handYouDiv.appendChild(cardEl);
+  });
+  stakeDisplay.innerText = stakes;
+  updateTurnUI();
+}
+
+function renderVira(){ if(vira) viraCardDiv.innerHTML = `<div style="font-weight:900">${vira.rank}</div><div style="opacity:0.95">${vira.suit.sym}</div>`; else viraCardDiv.innerHTML=''; }
+
+function updateTurnUI(){
+  turnIndicator.textContent = (turnIsYou ? 'Sua vez de jogar' : 'Vez da CPU');
+  stakeDisplay.textContent = stakes;
+  const canCallPlayer = turnIsYou && !awaitingResponse && currentVaza < 3 && lastRaiser !== 'you';
+  callTrucoBtn.disabled = !canCallPlayer;
+  callSeisBtn.disabled = !canCallPlayer;
+  callNoveBtn.disabled = !canCallPlayer;
+  callDozeBtn.disabled = !canCallPlayer;
+}
+
+function gameCanPlayerPlayCard(idx){
+  if(!turnIsYou) return false;
+  if(awaitingResponse) return false;
+  const youPlays = vazaPlays[currentVaza].filter(p=>p.who==='you');
+  return youPlays.length === 0;
+}
+
+// ----- Jogadas ----- 
+function playerPlayCard(handIdx){
+  if(!gameCanPlayerPlayCard(handIdx)) return;
+  const card = handYou.splice(handIdx,1)[0];
+  vazaPlays[currentVaza].push({who:'you', card});
+  youPlayedDiv.innerText = cardLabel(card);
+  log(`Você jogou ${cardLabel(card)} (vaza ${currentVaza+1})`);
+  renderHands();
+  const plays = vazaPlays[currentVaza];
+  if(plays.length === 2) setTimeout(()=>resolveVaza(), 400);
+  else { turnIsYou = false; updateTurnUI(); setTimeout(()=>cpuTurnOrAct(), 600); }
+}
+
+function cpuTurnOrAct(){
+  if(turnIsYou || awaitingResponse) return;
+  if(handCPU.length === 0) return;
+  const youPlayed = vazaPlays[currentVaza].find(p=>p.who==='you');
+  if(!youPlayed){
+    const strong = evaluateHandStrength(handCPU);
+    if(!awaitingResponse && Math.random() < 0.09 + 0.05*strong){
+      const level = clamp(stakeLevel+1,0,4);
+      cpuInitiateCall(level);
+      return;
+    }
+    const sorted = [...handCPU].sort((a,b)=> compareCards(b,a));
+    const card = sorted[0];
+    const idx = handCPU.findIndex(c=>c.rank===card.rank && c.suit.name===card.suit.name);
+    if(idx>=0) handCPU.splice(idx,1);
+    vazaPlays[currentVaza].push({who:'cpu', card});
+    cpuPlayedDiv.innerText = cardLabel(card);
+    log(`CPU jogou ${cardLabel(card)} (vaza ${currentVaza+1})`);
+    if(vazaPlays[currentVaza].length===2) setTimeout(()=>resolveVaza(), 420);
+    else { turnIsYou = true; updateTurnUI(); }
+  } else {
+    const candidate = handCPU.find(c=> compareCards(c, youPlayed.card) === 1 );
+    let card;
+    if(candidate) card = candidate;
+    else card = [...handCPU].sort((a,b)=> compareCards(b,a))[0];
+    const idx = handCPU.findIndex(c=>c.rank===card.rank && c.suit.name===card.suit.name);
+    if(idx>=0) handCPU.splice(idx,1);
+    vazaPlays[currentVaza].push({who:'cpu', card});
+    cpuPlayedDiv.innerText = cardLabel(card);
+    log(`CPU jogou ${cardLabel(card)} (vaza ${currentVaza+1})`);
+    if(vazaPlays[currentVaza].length===2) setTimeout(()=>resolveVaza(), 420);
+    else { turnIsYou = true; updateTurnUI(); }
+  }
+}
+
+// ----- Resolução de vaza e mão -----
+function resolveVaza(){
+  const plays = vazaPlays[currentVaza];
+  if(plays.length < 2){ turnIsYou = !turnIsYou; updateTurnUI(); return; }
+  const p1 = plays[0], p2 = plays[1];
+  const cmp = compareCards(p1.card, p2.card);
+  let winner = null;
+  if(cmp === 1) winner = p1.who;
+  else if(cmp === -1) winner = p2.who;
+  else winner = 'none';
+  vazaWins[currentVaza] = winner;
+  if(currentVaza===0) v1.innerText = winner === 'you' ? 'Você' : (winner==='cpu' ? 'CPU' : 'Embolada');
+  if(currentVaza===1) v2.innerText = winner === 'you' ? 'Você' : (winner==='cpu' ? 'CPU' : 'Embolada');
+  if(currentVaza===2) v3.innerText = winner === 'you' ? 'Você' : (winner==='cpu' ? 'CPU' : 'Embolada');
+  log(`Vaza ${currentVaza+1} vencida por: ${winner === 'you' ? 'Você' : (winner==='cpu' ? 'CPU' : 'Embolada')}`);
+
+  if(winner === 'you' || winner === 'cpu') turnIsYou = (winner === 'you');
+  else turnIsYou = (plays[0].who === 'you');
+  updateTurnUI();
+
+  // limpar estados de pedido para evitar travamento
+  awaitingResponse = false; pendingCaller = null; lastRaiser = null;
+  responseControls.innerHTML = '';
+
+  const handWinner = evaluateHandWinner();
+  if(handWinner){
+    awardPointsForHand(handWinner);
+    manoIsYou = !manoIsYou;
+    if(scoreYou >= 12 || scoreCPU >= 12){ announceMatchWinner(); return; }
+    setTimeout(()=>startNewHand(), 900);
+    return;
+  } else {
+    currentVaza++;
+    cpuPlayedDiv.innerText=''; youPlayedDiv.innerText='';
+    renderHands();
+    if(!turnIsYou) setTimeout(()=>cpuTurnOrAct(), 700);
+  }
+}
+
+function evaluateHandWinner(){
+  const seen = vazaWins.slice(0, currentVaza+1);
+  const you = seen.filter(s=>s==='you').length;
+  const cpu = seen.filter(s=>s==='cpu').length;
+  if(you >= 2) return 'you';
+  if(cpu >= 2) return 'cpu';
+  if(currentVaza === 1){
+    if(vazaWins[0] === 'none' && vazaWins[1] && vazaWins[1] !== 'none') return vazaWins[1];
+    if(vazaWins[1] === 'none' && vazaWins[0] && vazaWins[0] !== 'none') return vazaWins[0];
+    return null;
+  }
+  if(currentVaza >= 2){
+    const all = vazaWins.slice(0,3);
+    const y = all.filter(s=>s==='you').length;
+    const c = all.filter(s=>s==='cpu').length;
+    if(y > c) return 'you';
+    if(c > y) return 'cpu';
+    return manoIsYou ? 'you' : 'cpu';
+  }
+  return null;
+}
+
+function awardPointsForHand(winner){
+  log(`== MÃO vencida por: ${winner === 'you' ? 'Você' : 'CPU'} (ganha ${stakes} ponto(s)) ==`);
+  if(winner === 'you') scoreYou += stakes; else scoreCPU += stakes;
+  updateScores();
+}
+
+function updateScores(){ scoreYouEl.innerText = scoreYou; scoreCPUEl.innerText = scoreCPU; }
+function announceMatchWinner(){ if(scoreYou >= 12) alert('Parabéns — você ganhou a partida!'); else alert('CPU venceu a partida. Boa tentativa!'); startNewMatch(true); }
+
+// ----- Pedidos (trucar / aumentar) -----
+function playerCallIncrease(level){
+  if(!turnIsYou || awaitingResponse) { log('Não é possível pedir agora.'); return; }
+  if(level <= stakeLevel){ log('Já estamos nesse nível ou maior.'); return; }
+  if(lastRaiser === 'you'){ log('Espere o adversário responder antes de aumentar novamente.'); return; }
+  previousStakeLevelBeforeCall = stakeLevel;
+  pendingCaller = 'you';
+  awaitingResponse = true;
+  lastRaiser = 'you';
+  log(`Você pediu ${STAKE_LEVELS[level]} pontos (nível ${level}). CPU decidindo...`);
+  setTimeout(()=>cpuRespondToCall(level), 700);
+}
+
+function cpuInitiateCall(level){
+  if(awaitingResponse) return;
+  if(level <= stakeLevel) return;
+  if(lastRaiser === 'cpu') return;
+  previousStakeLevelBeforeCall = stakeLevel;
+  pendingCaller = 'cpu';
+  awaitingResponse = true;
+  lastRaiser = 'cpu';
+  log(`CPU pede ${STAKE_LEVELS[level]} pontos. Aguarde sua resposta.`);
+  showModalForResponse({from:'cpu', levelAsked: level});
+}
+
+function cpuRespondToCall(levelAsked){
+  const strength = evaluateHandStrength(handCPU);
+  let choice='accept';
+  const r = Math.random();
+  if(strength > 0.75 && r < 0.5) choice='raise';
+  else if(strength > 0.45 && r < 0.85) choice='accept';
+  else choice='run';
+
+  if(choice === 'accept'){
+    stakeLevel = levelAsked; stakes = STAKE_LEVELS[stakeLevel];
+    awaitingResponse = false; pendingCaller = null;
+    responseControls.innerHTML = '';
+    log(`CPU aceitou. Agora a mão vale ${stakes} pontos.`);
+    updateTurnUI();
+    if(!turnIsYou) setTimeout(()=>cpuTurnOrAct(),600);
+  } else if(choice === 'run'){
+    const points = STAKE_LEVELS[ previousStakeLevelBeforeCall ];
+    log(`CPU fugiu. Você recebe ${points} ponto(s).`);
+    scoreYou += points; updateScores();
+    awaitingResponse = false; pendingCaller = null; responseControls.innerHTML = '';
+    setTimeout(()=>{ manoIsYou = !manoIsYou; if(scoreYou >= 12 || scoreCPU >= 12) announceMatchWinner(); else startNewHand(); }, 700);
+  } else {
+    const newLevel = clamp(levelAsked+1,0,4);
+    previousStakeLevelBeforeCall = levelAsked;
+    stakeLevel = newLevel; stakes = STAKE_LEVELS[stakeLevel];
+    awaitingResponse = true; pendingCaller = 'cpu'; lastRaiser = 'cpu';
+    log(`CPU aumentou a aposta para ${stakes} pontos. Agora é sua vez de responder.`);
+    showModalForResponse({from:'cpu', levelAsked: newLevel});
+    updateTurnUI();
+  }
+}
+
+function playerRespondToCPUPetition(action, levelAsked){
+  // action: 'accept','run','raise'
+  // fechar modal visual aqui (true indica ação por botão)
+  closeModal(true);
+  if(!awaitingResponse || pendingCaller !== 'cpu') { log('Nenhuma resposta necessária agora.'); return; }
+  if(action === 'accept'){
+    stakeLevel = levelAsked; stakes = STAKE_LEVELS[stakeLevel];
+    awaitingResponse = false; pendingCaller = null;
+    log(`Você aceitou. Mão vale ${stakes} pontos.`);
+    updateTurnUI();
+    if(!turnIsYou) setTimeout(()=>cpuTurnOrAct(), 500);
+  } else if(action === 'run'){
+    const points = STAKE_LEVELS[ previousStakeLevelBeforeCall ];
+    log(`Você fugiu. CPU recebe ${points} ponto(s).`);
+    scoreCPU += points; updateScores();
+    awaitingResponse = false; pendingCaller = null; responseControls.innerHTML = '';
+    setTimeout(()=>{ manoIsYou = !manoIsYou; if(scoreYou >= 12 || scoreCPU >= 12) announceMatchWinner(); else startNewHand(); },700);
+  } else if(action === 'raise'){
+    const newLevel = clamp(levelAsked+1,0,4);
+    previousStakeLevelBeforeCall = levelAsked;
+    stakeLevel = newLevel; stakes = STAKE_LEVELS[stakeLevel];
+    awaitingResponse = true; pendingCaller = 'you'; lastRaiser = 'you';
+    log(`Você aumentou para ${stakes}. CPU decidindo...`);
+    showWaitingForCPU();
+    setTimeout(()=>cpuRespondToYourRaise(newLevel), 700);
+  }
+}
+
+function cpuRespondToYourRaise(levelAsked){
+  const strength = evaluateHandStrength(handCPU);
+  const r = Math.random();
+  if(strength > 0.7 && r < 0.7){
+    if(levelAsked < 4 && Math.random() < 0.18 && strength > 0.85){
+      const newLevel = clamp(levelAsked+1,0,4);
+      previousStakeLevelBeforeCall = levelAsked;
+      stakeLevel = newLevel; stakes = STAKE_LEVELS[stakeLevel];
+      pendingCaller = 'cpu'; awaitingResponse = true; lastRaiser='cpu';
+      log(`CPU aumentou para ${stakes}. Aguarda sua resposta.`);
+      showModalForResponse({from:'cpu', levelAsked: newLevel});
+      return;
+    } else {
+      stakeLevel = levelAsked; stakes = STAKE_LEVELS[stakeLevel];
+      awaitingResponse = false; pendingCaller = null;
+      log(`CPU aceitou. Mão vale ${stakes} pontos.`);
+      updateTurnUI();
+      if(!turnIsYou) setTimeout(()=>cpuTurnOrAct(),600);
+      return;
+    }
+  } else {
+    const points = STAKE_LEVELS[ previousStakeLevelBeforeCall ];
+    log(`CPU fugiu. Você recebe ${points} ponto(s).`);
+    scoreYou += points; updateScores();
+    awaitingResponse = false; pendingCaller = null; responseControls.innerHTML = '';
+    setTimeout(()=>{ manoIsYou = !manoIsYou; if(scoreYou >= 12 || scoreCPU >= 12) announceMatchWinner(); else startNewHand(); },700);
+    return;
+  }
+}
+
+function showWaitingForCPU(){
+  responseControls.innerHTML = '';
+  const w = document.createElement('div');
+  w.className='small muted';
+  w.innerText = 'CPU decidindo...';
+  responseControls.appendChild(w);
+}
+
+// ----- Modal popup (player responses) -----
+// guarda e exibe modal; modalLevelAsked é atualizado para o handler de fechar
+function showModalForResponse({from, levelAsked}){
+  modalLevelAsked = levelAsked; // salva para o botão fechar / backdrop / Esc
+  modalTitle.innerText = 'Pedido de Truco';
+  modalText.innerText = `${from === 'cpu' ? 'CPU' : 'Adversário'} pediu ${STAKE_LEVELS[levelAsked]} pontos. O que deseja fazer?`;
+  modalStakeInfo.innerText = `Nível anterior: ${STAKE_LEVELS[previousStakeLevelBeforeCall]} → Pedido atual: ${STAKE_LEVELS[levelAsked]}`;
+  modalButtons.innerHTML = '';
+
+  const accept = document.createElement('button'); accept.innerText = 'Aceitar'; accept.className='secondary';
+  accept.onclick = ()=>playerRespondToCPUPetition('accept', levelAsked);
+  const run = document.createElement('button'); run.innerText = 'Fugir (Fold)'; run.className='secondary';
+  run.style.background='#5b2b2b'; run.onclick = ()=>playerRespondToCPUPetition('run', levelAsked);
+  const raise = document.createElement('button'); raise.innerText = 'Aumentar'; raise.onclick = ()=>playerRespondToCPUPetition('raise', levelAsked);
+
+  modalButtons.appendChild(accept); modalButtons.appendChild(raise); modalButtons.appendChild(run);
+  openModal();
+}
+
+function openModal(){ modalBackdrop.style.display='flex'; modalBackdrop.setAttribute('aria-hidden','false'); }
+function closeModal(fromButton){ modalBackdrop.style.display='none'; modalBackdrop.setAttribute('aria-hidden','true'); }
+
+// ----- Avaliação simples de força -----
+function evaluateHandStrength(hand){
+  let s=0;
+  for(const c of hand){
+    if(c.rank === manilhaRank) s += 2.0;
+    else {
+      const idx = RANK_ORDER.indexOf(c.rank);
+      s += (idx / (RANK_ORDER.length-1));
+    }
+  }
+  const maxPossible = 2.0 + 1 + 1;
+  return Math.min(1, s / maxPossible);
+}
+
+// ----- Logs e utilitários -----
+function log(txt){ const p = document.createElement('div'); p.innerText = txt; logDiv.prepend(p); }
+function resetAll(){ scoreYou=0; scoreCPU=0; manoIsYou=true; startNewHand(); updateScores(); }
+function endHandByFold(winner, pointsAwarded){ log(`${winner === 'you' ? 'Você' : 'CPU'} ganhou por fold e recebe ${pointsAwarded} pontos.`); if(winner==='you') scoreYou += pointsAwarded; else scoreCPU += pointsAwarded; updateScores(); setTimeout(()=>{ manoIsYou = !manoIsYou; if(scoreYou >= 12 || scoreCPU >= 12) announceMatchWinner(); else startNewHand(); },800); }
+
+// Keep UI buttons consistent
+setInterval(()=>{ callTrucoBtn.disabled = !(turnIsYou && !awaitingResponse && currentVaza < 3 && lastRaiser !== 'you'); callSeisBtn.disabled = callTrucoBtn.disabled; callNoveBtn.disabled = callTrucoBtn.disabled; callDozeBtn.disabled = callTrucoBtn.disabled; }, 300);
+
+</script>
+</body>
+</html>
